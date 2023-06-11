@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"syscall"
 )
 
 func main() {
@@ -31,6 +32,12 @@ func execution(args ...string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		// change the uts, so our hostname in container
+		// will be different from the host
+		Cloneflags: syscall.CLONE_NEWUTS,
+	}
 
 	err := cmd.Run()
 
