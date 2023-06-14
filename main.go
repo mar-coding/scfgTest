@@ -50,6 +50,25 @@ func parent(args ...string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// change the uts, so our hostname in container
 		// will be different from the host
+
+		// Cloneflags:
+		// syscall.CLONE_NEWUTS flag creates a new UTS (Unix Timesharing System) namespace for the child process.
+		// This namespace provides isolation for the hostname and domain name,
+		// allowing the container's hostname to be different from the host system.
+
+		// syscall.CLONE_NEWPID flag creates a new PID (Process ID) namespace for the child process.
+		// This namespace provides process isolation, meaning the child process will have a separate PID namespace,
+		// making it appear as if it is running in its own isolated environment.
+
+		// syscall.CLONE_NEWNS flag creates a new mount namespace for the child process.
+		// This namespace provides isolation for the mount points,
+		// allowing the child process to have its own separate filesystem view.
+
+		// Unshareflags
+		// syscall.CLONE_NEWNS flag indicates that the child process should have its own mount namespace.
+		// This is used in conjunction with the Cloneflags mentioned above to
+		//  ensure that the child process has a separate mount namespace.
+
 		Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
 		Unshareflags: syscall.CLONE_NEWNS,
 	}
@@ -65,6 +84,9 @@ func child(args ...string) error {
 	log.Printf("Running %v as %d\n", args[2:], os.Getegid())
 
 	must(syscall.Sethostname([]byte("container")))
+
+	// '/tmp/alpine-rootfs/' is where the container's root filesystem is mounted.
+	// where the mini root alpine was extracted.
 	must(syscall.Chroot("/tmp/alpine-rootfs/"))
 	must(syscall.Chdir("/"))
 	must(syscall.Mount("proc", "proc", "proc", 0, ""))
