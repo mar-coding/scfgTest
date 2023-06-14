@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"syscall"
@@ -36,6 +36,7 @@ func run(name string) {
 }
 
 func parent(args ...string) error {
+	log.Printf("Running %v \n", args[2:])
 	// it is use the process that is running now
 	// (the process that our golang code is running on.)
 	// and it is run the child process.
@@ -49,7 +50,8 @@ func parent(args ...string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// change the uts, so our hostname in container
 		// will be different from the host
-		Cloneflags: syscall.CLONE_NEWUTS,
+		Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
+		Unshareflags: syscall.CLONE_NEWNS,
 	}
 
 	// set the hostname to show in the cmd
@@ -60,9 +62,12 @@ func parent(args ...string) error {
 }
 
 func child(args ...string) error {
-	fmt.Printf("Running %v as %d\n", os.Args[2:], os.Getegid())
+	log.Printf("Running %v as %d\n", args[2:], os.Getegid())
 
-	syscall.Sethostname([]byte("container"))
+	must(syscall.Sethostname([]byte("container")))
+	must(syscall.Chroot("/tmp/alpine-rootfs/"))
+	must(syscall.Chdir("/"))
+	must(syscall.Mount("proc", "proc", "proc", 0, ""))
 
 	cmd := exec.Command(args[2], args[3:]...)
 
@@ -71,15 +76,17 @@ func child(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		// change the uts, so our hostname in container
-		// will be different from the host
-		Cloneflags: syscall.CLONE_NEWUTS,
-	}
-
 	// set the hostname to show in the cmd
 
 	err := cmd.Run()
 
+	must(syscall.Unmount("proc", 0))
+
 	return err
+}
+
+func must(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
